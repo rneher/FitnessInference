@@ -29,17 +29,13 @@ parser = argparse.ArgumentParser(description="rank sequences in a multiple seque
 parser.add_argument('--aln', type=str, required= True, help = 'alignment of sequences to by ranked')
 parser.add_argument('--outgroup', type=str,required= True, help = 'name of outgroup sequence')
 parser.add_argument('--eps_branch', default=1e-5, type=float, help='minimal branch length for inference')
-parser.add_argument('--tau', default=0.125, type=float, help='time scale for local tree length estimation (relative to average pairwise distance)')
-parser.add_argument('--collapse', const = True, default=True, nargs='?', help='collapse internal branches with identical sequences')
+parser.add_argument('--diffusion', default=0.5, type=float, help='fitness diffusion coefficient')
+parser.add_argument('--gamma', default=1.0, type=float, help='scale factor for time scale, choose high (>2) for prediction, 1 for fitness inference')
+parser.add_argument('--omega', default=0.1, type=float, help='approximate sampling fraction diveded by the fitness standard deviation')
+parser.add_argument('--collapse', const = True, default=False, nargs='?', help='collapse internal branches with identical sequences')
 parser.add_argument('--plot', const = True, default=False, nargs='?', help='plot trees')
 params=parser.parse_args()
 #########################################################################################
-
-params.diffusion=1.0
-params.gamma=1.0
-params.omega = 1.0
-# change time units from pairwise distance to pair coalescent time.
-params.tau = params.tau*2
 
 import matplotlib
 matplotlib.use('pdf')
@@ -97,11 +93,10 @@ if outgroup is None:
 seq_data = alignment(aln, outgroup)
 
 prediction = sequence_ranking(seq_data, eps_branch_length=params.eps_branch, pseudo_count = 5,
-                            methods = ['polarizer'], D=params.diffusion,
+                            methods = ['mean_fitness'], D=params.diffusion,
                             distance_scale = params.gamma, samp_frac = params.omega)
 
 best_node = prediction.predict()
-prediction.calculate_polarizers(mem=params.tau)
 
 #######################################################################################
 ## output
@@ -126,20 +121,20 @@ with open(dirname+'/ancestral_sequences.fasta', 'w') as outfile:
 
 ## write sequence ranking to file
 # terminal nodes
-prediction.rank_by_method(nodes = prediction.terminals, method = 'polarizer');
+prediction.rank_by_method(nodes = prediction.terminals, method = 'mean_fitness');
 with open(dirname+'/sequence_ranking_terminals.txt', 'w') as outfile:
-    outfile.write('#'+'\t'.join(['name','rank', 'polarizer'])+'\n')
+    outfile.write('#'+'\t'.join(['name','rank', 'mean', 'standard dev'])+'\n')
     for node in prediction.terminals:
-        outfile.write('\t'.join(map(str,[node.name, node.rank, node.polarizer]))+'\n')
+        outfile.write('\t'.join(map(str,[node.name, node.rank, node.mean_fitness, np.sqrt(node.var_fitness)]))+'\n')
 
 # terminal nodes
-prediction.rank_by_method(nodes = prediction.non_terminals, method = 'polarizer');
+prediction.rank_by_method(nodes = prediction.non_terminals, method = 'mean_fitness');
 with open(dirname+'/sequence_ranking_nonterminals.txt', 'w') as outfile:
-    outfile.write('#'+'\t'.join(['name','rank', 'polarizer'])+'\n')
+    outfile.write('#'+'\t'.join(['name','rank', 'mean', 'variance'])+'\n')
     for node in prediction.non_terminals:
-        outfile.write('\t'.join(map(str,[node.name, node.rank, node.polarizer]))+'\n')
+        outfile.write('\t'.join(map(str,[node.name, node.rank, node.mean_fitness, np.sqrt(node.var_fitness)]))+'\n')
 
 
 if params.plot:
-    tree_utils.plot_prediction_tree(prediction, method='polarizer')
+    tree_utils.plot_prediction_tree(prediction)
     plt.savefig(dirname+'/marked_up_tree.pdf')

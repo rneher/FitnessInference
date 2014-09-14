@@ -39,7 +39,7 @@ Y_2 = np.zeros((nt, mysol.fitness_grid.shape[0]))
 y1 = fitness_grid[0.5*fitness_grid.shape[0]-1]  # y1, y2 are the initial fitness of the ancestor
 y2 = fitness_grid[0.8*fitness_grid.shape[0]-1]  # -1 since the only 1:-1 of the fitness grid is used
 for ti,t_start in enumerate(t):
-    propagator = mysol.integrate_prop(D,eps, mysol.fitness_grid[1:-1], t_start, t_end,dt=0.005)
+    propagator = mysol.integrate_prop(D,eps, mysol.fitness_grid[4:-4], t_start, t_end,dt=0.005)
     Z_1[ti] = propagator[-1,:,0.5*fitness_grid.shape[0]]
     Z_2[ti] = propagator[-1,:,0.8*fitness_grid.shape[0]]
     Y_1[ti] = propagator[-1,0.2*fitness_grid.shape[0],:]

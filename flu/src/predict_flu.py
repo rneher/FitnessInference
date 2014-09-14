@@ -45,6 +45,11 @@ HA1_antigenic_sites = [pos - 1  for pos in
 # cluster position in numbering starting at 0
 cluster_positions = sorted([188,192,155,158,157, 154, 144])
 
+# cluster years
+cluster_transitios = {1995:(), 1997:(), 2002:(155, 156),2004: (145,),2005: (193,), 2009: (158, 159)}
+
+
+
 def koel_mutation_branch_label(node):
     if len(node.get_terminals())>1:
         return branch_label(node, aa=True, display_positions = cluster_positions)
@@ -122,7 +127,7 @@ class flu_alignment(alignment):
     and selection criteria
     '''
     def __init__(self, aln_fname, outgroup, annotation, seq_names = None, criteria = None, 
-                 cds=None, subsample_factor=1.0, collapse=False):
+                 cds=None, subsample_factor=1.0, collapse=False, build_tree=True):
         '''
         parameters:
         aln_fname   --  filename with alignment
@@ -141,8 +146,9 @@ class flu_alignment(alignment):
             print "either names of criteria need to be given"
 
         # initialize the base class, allele frequencies and the tree will be calculated
-        alignment.__init__(self,self.subset_aln, outgroup, cds, collapse=collapse)
-        self.annotate_leafs()
+        alignment.__init__(self,self.subset_aln, outgroup, cds, collapse=collapse, build_tree=build_tree)
+        if self.make_tree:
+            self.annotate_leafs()
 
 
     def select_subset_single(self, start_date, stop_date, regions=None, full_date=True):
@@ -302,13 +308,8 @@ class flu_alignment(alignment):
 ##########################################################################################
         
 class flu_ranking(sequence_ranking):
-    def __init__(self, flu_data,
-                 eps_branch_length=1e-5, boost = 0.0, time_bins=None, distance_scale = 3.0,
-                 pseudo_count = 5, methods = ['mean_fitness', 'branch_length', 
-                                              'depth', 'expansion_score'], D=0.5):
-        sequence_ranking.__init__(self, flu_data, eps_branch_length = eps_branch_length, 
-                                  time_bins=time_bins, pseudo_count = pseudo_count,
-                                  methods= methods, D=D, distance_scale = distance_scale)
+    def __init__(self, flu_data, boost = 0.0, **kwargs):
+        sequence_ranking.__init__(self, flu_data, **kwargs)
         self.display_positions =cluster_positions
         self.boost = boost
         if self.boost!=0.0:

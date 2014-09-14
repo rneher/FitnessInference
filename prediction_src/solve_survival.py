@@ -174,7 +174,7 @@ class survival_gen_func(object):
         for ii, x_val in enumerate(x):
             # find index in fitness grid
             xi = np.argmin(x_val >self.fitness_grid)
-            # init as delta function, normized
+            # init as delta function, normalized
             prop0[xi,ii] = self.dxinv
 
         # solve the entire matrix simultaneously.
@@ -213,15 +213,17 @@ class survival_gen_func(object):
 
 
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt 
+    import matplotlib.pyplot as plt
+    from matplotlib import cm
     mysol = survival_gen_func(np.linspace(-4,8,61))
 
     # calculate the generating function for different values of D and eps
     # the result is saved in mysol
-    for D in [0.2,0.5, 1.0]:
+    t_initial = 0.0
+    for D in [0.2,0.5]:
         plt.figure()
         plt.title('D='+str(D))
-        for eps, ls in zip([0.001, 0.1], ['-', '--']):
+        for eps, ls in zip([0.0001, 0.01, 1.0], ['-', '--', '-.']):
             sol = mysol.integrate_phi(D, eps, np.linspace(0, 20,40))
             plt.plot(mysol.fitness_grid, mysol.phi_solutions[(D,eps)].y.T , ls=ls)
 
@@ -231,11 +233,11 @@ if __name__ == "__main__":
     # use the precomputed generating functions to calculate the lineage propagators
     import time
     tstart = time.time()    
-    x_array = mysol.fitness_grid[2:-2]
+    x_array = mysol.fitness_grid[5:-5]
     t_array =  np.linspace(0.01, 7,18)
-    eps=0.001
-    for D in [0.2,0.5]: #, 0.5, 1.0]:
-        sol_bwd = mysol.integrate_prop(D,eps, x_array, 1.0,1.0+t_array)
+    eps=0.0001
+    for D in [0.2]: #, 0.5, 1.0]:
+        sol_bwd = mysol.integrate_prop(D,eps, x_array, t_initial, t_initial+t_array)
 
         plt.figure()
         plt.suptitle('propagator D='+str(D))
@@ -244,7 +246,33 @@ if __name__ == "__main__":
             plt.title('t='+str(np.round(t,2)))
             plt.imshow(np.log(sol_bwd[2*ti,:,:].T), interpolation='nearest')
 
-    print np.round(time.time()-tstart,3), 'seconds'
-    print mysol.fitness_grid[np.argmax(sol_bwd, axis=2)]
+        # plot mean offspring fitness as a function of time for difference ancestor fitness
+        plt.figure()
+        plt.title('Child fitness D='+str(D)+' omega='+str(eps))
+        for yi in range(10,50,5):
+            child_means = np.array([np.sum(sol_bwd[i,:,yi]*x_array)
+                                    for i in range(sol_bwd.shape[0])])
+            child_means /= np.sum(sol_bwd[:,:,yi], axis=1) 
+            child_std = np.array([np.sum(sol_bwd[i,:,yi]*(x_array-child_means[i])**2)
+                                    for i in range(sol_bwd.shape[0])])
+            child_std /=np.sum(sol_bwd[:,:,yi], axis=1)
+            child_std = np.sqrt(child_std)
+            plt.plot(t_array, child_means[1:], ls='-', c=cm.jet(yi/50.0), lw=2)
+            plt.plot(t_array, child_std[1:], ls='--', c=cm.jet(yi/50.0), lw=2)
+        plt.xlabel('time to ancestor, child at t='+str(t_initial))
+        plt.ylabel('child mean fitness/std')
 
+        # plot mean offspring fitness as a function of time for difference ancestor fitness
+        plt.figure()
+        plt.title('Ancestor fitness D='+str(D)+' omega='+str(eps))
+        tmp_gauss = np.exp(-0*mysol.fitness_grid**2/2)
+        for xi in range(10,45,5):
+            plt.plot(t_array,
+                     [np.sum(sol_bwd[i,xi,:]*mysol.fitness_grid*tmp_gauss)
+                      /np.sum(sol_bwd[i,xi,:]*tmp_gauss)
+                       for i in range(1,sol_bwd.shape[0])])
+        plt.xlabel('time to ancestor, child at t='+str(t_initial))
+        plt.ylabel('ancestor fitness')
+        
+    print np.round(time.time()-tstart,3), 'seconds'
 

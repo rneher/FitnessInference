@@ -30,8 +30,8 @@ class node_ranking(fitness_inference):
     '''
     ranks the external and internal nodes of a tree using the fitness inference algorithm
     '''
-    def __init__(self, methods = ['mean_fitness', 'branch_length', 'depth', 'expansion_score'], 
-                 time_bins = None, eps_branch_length=1e-7, D=0.5, pseudo_count = 5):
+    def __init__(self, methods = ['mean_fitness', 'polarizer', 'branch_length', 'depth', 'expansion_score'], 
+                 time_bins = None, pseudo_count = 5, *args, **kwargs):
         '''
         no required arguments
         keyword arguments
@@ -41,7 +41,7 @@ class node_ranking(fitness_inference):
         pseudo_count      --   pseudo count used for calculating frequencies in time_bins 
         '''
 
-        fitness_inference.__init__(self, eps_branch_length, D=D)
+        fitness_inference.__init__(self, *args, **kwargs)
         self.methods = methods
         if time_bins:
             self.time_bins = sorted(time_bins)
@@ -60,6 +60,8 @@ class node_ranking(fitness_inference):
             self.infer_ancestral_fitness()
             if verbose:
                 print "done in ", np.round(time.time()-tmp_t,2), "s"
+        if 'polarizer' in self.methods:
+            self.calculate_polarizers()
 
         if verbose:
             tmp_t = time.time()

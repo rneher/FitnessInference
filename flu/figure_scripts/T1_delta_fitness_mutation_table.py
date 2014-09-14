@@ -3,39 +3,29 @@ This script analyze previously computed tables of the fitness differences along 
 the number of synonymous, non-synonymous, epitope mutations, adn koel mutations
 These files are computed by analyze_HA1.py
 '''
-
+import sys
+sys.path.append('/ebio/ag-neher/share/users/rneher/FluPrediction_code/flu/src')
+import test_flu_prediction as test_flu
 import numpy as np
-import glob, pickle, argparse
+import glob, pickle
 from scipy import stats
 
-parser = argparse.ArgumentParser(description="analyze mutation prevalence on branches")
-parser.add_argument('--flutype', type = str, default = 'H3N2', help = 'influenza strain')
-parser.add_argument('--sample_size', default=100, type=int, 
-                    help='max number of sequences to use')
-parser.add_argument('--pred', default='asia,north america', type=str, help='regions to predict')
-parser.add_argument('--test', default='asia,north america', type=str, help='regions to test')
-parser.add_argument('--boost', default=0.0, type=float, help='fitness increment for cluster mutation')
-parser.add_argument('--diffusion', default=0.5, type=float, help='Fitness diffusion coefficient')
-parser.add_argument('--dscale', default=5.0, type=float, help='scale factor for time scale')
-parser.add_argument('--collapse', const = True, default=False, nargs='?', help='collapse internal branches with identical sequences')
-
+analysis_folder = test_flu.flu_analysis_folder
+# parse the commandline arguments
+parser = test_flu.make_flu_parser()
+parser.add_argument('--tau', default = 1.0, type = float, help= 'memory time scale of the tree polarizer')
 params=parser.parse_args()
-prediction_regions = params.pred.split(',')
-test_regions = params.test.split(',')
+params.year='????'
 
-# construct file mask to read precomputed files
-analysis_folder = '../analysis_may_feb/'
+# get name snippets to link data files to requested parameters
+base_name, name_mod = test_flu.get_fname(params)
+
 figure_folder = '../figures_ms/'
-base_name = params.flutype+'_????_trees_pred_'+'_'.join(prediction_regions)\
-            +'_test_'+'_'.join(test_regions)
-base_name=base_name.replace('north america', 'NA')
-print base_name
-name_mod = 'ssize_'+str(params.sample_size)+'_b_'+str(params.boost)+'_d_'+str(params.dscale)\
-            +'_D_'+str(params.diffusion)
-if params.collapse: name_mod+='_collapse'
 
 #make a list of all relevant files
-flist = glob.glob(analysis_folder+base_name+'*_dfit_mutations_*'+name_mod+'.dat')
+#fmask = analysis_folder+base_name+'_'+name_mod+'_dfit_mutations.dat'
+fmask = analysis_folder+base_name+'_tau_'+str(params.tau)+'_polarizer_dfit_mutations.dat'
+flist = glob.glob(fmask)
 
 # load and make a long list of all branches
 dfit_all = []
@@ -51,7 +41,8 @@ dfit_non_terminals = dfit_all[non_terminals,:]
 
 # loop over different slices of the distribution of delta fitness
 # and summarize mutation counts of different categories
-with open(figure_folder+params.flutype+'_dfit_mutations_'+name_mod+'.dat', 'w') as outfile:
+#with open(figure_folder+params.flutype+'_dfit_mutations_'+name_mod+'.dat', 'w') as outfile:
+with open(figure_folder+params.flutype+'_dfit_mutations_tau_'+str(params.tau)+'_ssize_'+str(params.sample_size)+'.dat', 'w') as outfile:
     prev_threshold = -10000
     total_mut_numbers = []
     delim = ' & '
@@ -86,9 +77,11 @@ with open(figure_folder+params.flutype+'_dfit_mutations_'+name_mod+'.dat', 'w') 
     outstr = '\nupper vs lower delta fitness quartile:'
     print outstr
     outfile.write(outstr+'\n')
+    ORs = []
     for ci, cname in [(0,'dn vs ds'), (2,'epi vs ds'), (3,'Koel vs ds')]: 
         fs = stats.fisher_exact([[total_mut_numbers[0,1], total_mut_numbers[0,ci]],
                                 [total_mut_numbers[-1,1], total_mut_numbers[-1,ci]]])
+        ORs.append(fs)
         outstr = delim.join(map(str,[cname, 'odds:',round(fs[0],3), 'pval:',round(fs[1],6)]))
         print outstr
         outfile.write(outstr+'\n')
@@ -100,6 +93,7 @@ with open(figure_folder+params.flutype+'_dfit_mutations_'+name_mod+'.dat', 'w') 
         fs = stats.fisher_exact([[total_mut_numbers[0,0], total_mut_numbers[0,ci]],
                                 [total_mut_numbers[-1,0], total_mut_numbers[-1,ci]]])
         outstr = delim.join(map(str,[cname, 'odds:',round(fs[0],3), 'pval:',round(fs[1],6)]))
+        ORs.append(fs)
         print outstr
         outfile.write(outstr+'\n')
 

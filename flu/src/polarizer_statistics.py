@@ -37,42 +37,40 @@ params=parser.parse_args()
 params.pred = params.pred.replace('^',' ')
 params.test =params.test.replace('^',' ')
 params.subsample=0.7
+params.diffusion = 1.0
 
 # get run specific file names
 fname_base, name_mod = test_flu.get_fname(params)
 
-top_strain_method = 'mean_fitness'
 # allocate arrays to save the predictions
-nuc_dist_array = np.zeros((params.nreps, 12))
-epi_dist_array = np.zeros((params.nreps, 12))
+m_list = 2.0**np.arange(-6,4, 1)
+nuc_dist_array = np.zeros((params.nreps, 3+2*len(m_list)))
+epi_dist_array = np.zeros_like(nuc_dist_array)
 top_strains = []
+top_strain_method = 'polarizer'
 for ii in xrange(params.nreps):
     # set up the prediction and pass all parameters to the wrapper function
-    prediction = test_flu.predict_params(['mean_fitness', 'expansion_score', 'depth', 'polarizer',
-                                          flu.combined_ranking_internal,
-                                          flu.combined_ranking_external],
-                                        params)
-
+    prediction = test_flu.predict_params(['polarizer'],params)
+    test_data, test_set = test_flu.make_test_set(prediction, params)
     # define the methodes for which the predictions are to be evaluated
-    methods = [('mean_fitness', '_ext', prediction.terminals),
-                ('mean_fitness', '_int', prediction.non_terminals),
-                ('expansion_score', '_int', prediction.non_terminals),
-                ('expansion_fitness', '', prediction.non_terminals),
-                ('time_fitness', '', prediction.terminals),
-                ('ladder_rank', '', prediction.terminals),
-                ('date', '', prediction.terminals),
-                ('polarizer', '_ext', prediction.terminals),
+    methods = [ ('polarizer', '_ext', prediction.terminals),
                 ('polarizer', '_int', prediction.non_terminals)]
-    distances, distances_epi, test_data = test_flu.evaluate(prediction, methods, params)
-    nuc_dist_array[ii,:] = [distances['average'],distances['minimal'],distances['L&L']]\
-                    +[distances[m[0]+m[1]] for m in methods]
-    epi_dist_array[ii,:] = [distances_epi['average'],distances_epi['minimal'],distances_epi['L&L']]\
-                    +[distances_epi[m[0]+m[1]] for m in methods]
+
+    for mi,mem_time_scale in enumerate(m_list):
+        prediction.calculate_polarizers(mem = mem_time_scale)
+        distances, distances_epi, test_data = test_flu.evaluate(prediction, methods, params, test_data = test_data, test_set = test_set)
+        nuc_dist_array[ii,mi+3] = distances['polarizer_ext']
+        epi_dist_array[ii,mi+3] = distances_epi['polarizer_ext']
+        nuc_dist_array[ii,mi+3+len(m_list)] = distances['polarizer_int']
+        epi_dist_array[ii,mi+3+len(m_list)] = distances_epi['polarizer_int']
+        
+    nuc_dist_array[ii,:3] = [distances['average'],distances['minimal'],distances['L&L']]
+    epi_dist_array[ii,:3] = [distances_epi['average'],distances_epi['minimal'],distances_epi['L&L']]
     # memorize the strain predicted best
     top_strains.append(prediction.best_node(method = top_strain_method, nodes = prediction.terminals))
 
 #if file does not exist, create and write header
-fname_nuc = analysis_folder+'_'.join([fname_base, name_mod, 'nuc.dat'])
+fname_nuc = analysis_folder+'_'.join([fname_base, 'polarizer_nuc.dat'])
 if not os.path.isfile(fname_nuc):
     with open(fname_nuc, 'w') as outfile:
         outfile.write('#average\tminimal\tL&L\t'+'\t'.join([m[0]+m[1] for m in methods])+'\n')
@@ -81,7 +79,7 @@ with open(fname_nuc, 'a') as outfile:
     np.savetxt(outfile, nuc_dist_array)
 
 #if file does not exist, create and write header
-fname_epi =analysis_folder+'_'.join([fname_base, name_mod, 'epi.dat'])
+fname_epi =analysis_folder+'_'.join([fname_base, 'polarizer_epi.dat'])
 if not os.path.isfile(fname_epi):
     with open(fname_epi, 'w') as outfile:
         outfile.write('#average\tminimal\tL&L\t'+'\t'.join([m[0]+m[1] for m in methods])+'\n')
@@ -91,8 +89,8 @@ with open(fname_epi, 'a') as outfile:
 
 
 # write the best nodes to file:
-fname_strains = analysis_folder+'_'.join([fname_base, name_mod, top_strain_method, 'topstrains.dat'])
-with open(fname_strains, 'a') as outfile:
-    for strain in top_strains:
-        outfile.write(strain.name+'\t'+str(strain.date)+'\n')
+#fname_strains = analysis_folder+'_'.join([fname_base, name_mod, top_strain_method, 'topstrains.dat'])
+#with open(fname_strains, 'a') as outfile:
+#    for strain in top_strains:
+#        outfile.write(strain.name+'\t'+str(strain.date)+'\n')
 

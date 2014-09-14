@@ -76,7 +76,7 @@ class ancestral_sequences:
             node.prob = self.get_state_array()
         # there is no parental information to the root (the root node is artificial)
         # hence init the message with ones
-        self.T.root.up_message = self.get_state_array()
+        self.T.root.down_message = self.get_state_array()
     
     
     def get_state_array(self):
@@ -124,29 +124,29 @@ class ancestral_sequences:
         #normalize
         self.normalize(clade)
 
-    def calc_down_messages(self,clade):
+    def calc_up_messages(self,clade):
         '''
         recursively calculates the messages passed on the parents of each node
-        input: clade whose down_messsage is to be calculated
+        input: clade whose up_messsage is to be calculated
         '''
         if clade.is_terminal():
             # if clade is terminal, the sequence is fix and we can emit the state probabilities
-            clade.down_message = self.calc_state_probabilites(clade.prob, clade.branch_length)
-            #print "down clade", clade.name, 'min:', np.min(clade.down_message)
-            clade.down_message[clade.down_message<1e-30] = 1e-30
+            clade.up_message = self.calc_state_probabilites(clade.prob, clade.branch_length)
+            #print "down clade", clade.name, 'min:', np.min(clade.up_message)
+            clade.up_message[clade.up_message<1e-30] = 1e-30
         else:
             #otherwise, multiply all down messages from children, normalize and pass down
             clade.prob[:]=0
             for child in clade.clades:
-                self.calc_down_messages(child)
-                clade.prob+=np.log(child.down_message)
+                self.calc_up_messages(child)
+                clade.prob+=np.log(child.up_message)
 
             self.log_normalize(clade)
-            clade.down_message = self.calc_state_probabilites(clade.prob, clade.branch_length)
-            #print "down clade", clade.name, 'min:', np.min(clade.down_message)
-            clade.down_message[clade.down_message<1e-30] = 1e-30
+            clade.up_message = self.calc_state_probabilites(clade.prob, clade.branch_length)
+            #print "down clade", clade.name, 'min:', np.min(clade.up_message)
+            clade.up_message[clade.up_message<1e-30] = 1e-30
 
-    def calc_up_messages(self,clade):
+    def calc_down_messages(self,clade):
         '''
         calculate the messages that are passed on to the children
         input calde for which these are to calculated
@@ -158,20 +158,20 @@ class ancestral_sequences:
             #else, loop over children and calculate the message for each of the children
             for child in clade.clades:
                 # initialize with the message comming from the parent
-                clade.prob[:]=np.log(clade.up_message)
+                clade.prob[:]=np.log(clade.down_message)
                 for child2  in clade.clades:
                     if child2 != child:
                         #multiply with the down message from each of the children, but skip child 1
-                        clade.prob+=np.log(child2.down_message)
+                        clade.prob+=np.log(child2.up_message)
                 
                 # normalize, adjust for modifications along the branch, and save.
                 self.log_normalize(clade)
-                child.up_message = self.calc_state_probabilites(clade.prob, child.branch_length)
-                #print "up clade", clade.name, 'min:', np.min(child.up_message)
-                child.up_message[child.up_message<1e-30] = 1e-30
+                child.down_message = self.calc_state_probabilites(clade.prob, child.branch_length)
+                #print "up clade", clade.name, 'min:', np.min(child.down_message)
+                child.down_message[child.down_message<1e-30] = 1e-30
             # do recursively for all children
             for child in clade.clades:
-                self.calc_up_messages(child)
+                self.calc_down_messages(child)
 
     def calc_marginal_probabilities(self,clade):
         '''
@@ -180,9 +180,9 @@ class ancestral_sequences:
         if clade.is_terminal():
             return
         else:
-            clade.prob[:]=np.log(clade.up_message)
+            clade.prob[:]=np.log(clade.down_message)
             for child in clade.clades:
-                clade.prob+=np.log(child.down_message)
+                clade.prob+=np.log(child.up_message)
                 
             # normalize and continue for all children
             self.log_normalize(clade)
@@ -212,8 +212,8 @@ class ancestral_sequences:
         given the initialized instance, calculates the most likely ancestral sequences 
         and the marginal probabilities for each position at each internal node.
         '''
-        self.calc_down_messages(self.T.root)
         self.calc_up_messages(self.T.root)
+        self.calc_down_messages(self.T.root)
         self.calc_marginal_probabilities(self.T.root)
         self.calc_most_likely_sequences(self.T.root)
 

@@ -1,3 +1,4 @@
+
 #########################################################################################
 #
 # author: Richard Neher
@@ -15,42 +16,41 @@
 #and to predictions using explicit temporal information (frequency dynamics within
 #clades)
 #
-import glob,argparse
+import glob,argparse,sys
+sys.path.append('/ebio/ag-neher/share/users/rneher/FluPrediction_code/flu/src')
+import test_flu_prediction as test_flu
 import analysis_utils as AU
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import scoreatpercentile
-file_format = '.svg'
+file_formats = [] #['.pdf', '.svg']
 
 # set matplotlib plotting parameters
-params = {'backend': 'pdf',  
-          'axes.labelsize': 20, 
-          'text.fontsize': 20,
-'font.sans-serif': 'Helvetica',
-'legend.fontsize': 18,
-'xtick.labelsize': 16,
-'ytick.labelsize': 16,
-'text.usetex': True}
-plt.rcParams.update(params)
+plt.rcParams.update(test_flu.mpl_params)
 figure_folder = '../figures_ms/'
 
 # set flutype, prediction regions, and basic parameters
-analysis_folder = '../analysis_may_feb/'
-flutype = 'H3N2'
-prediction_regions = ["asia","north america"]
-test_regions = ["asia","north america"]
-sample_size = 100
-dscale = 5.0
-D=0.5
+parser = test_flu.make_flu_parser()
+params=parser.parse_args()
+params.year='????'
+params.sample_size = 100
+D = params.diffusion = 0.5
+gamma = params.gamma = 3.0
+omega = params.omega = 0.001
+params.collapse = False
 metric = 'nuc'
 
+# make file identifiers
+base_name, name_mod = test_flu.get_fname(params)
+#remove year
+base_name = '_'.join(base_name.split('_')[:1]+base_name.split('_')[2:])
+base_name = base_name.replace('_????','')
 # load data (with Koel boost and without), save in dictionary
 prediction_distances={}
 normed_distances={}
 for boost in [0.0,0.5,1.0]:
-    years,tmp_pred, tmp_normed = AU.load_prediction_data(analysis_folder=analysis_folder, D=D,
-                                                   dscale=dscale,boost=boost, sample_size=sample_size,
-                                                   metric=metric)
+    params.boost = boost
+    years,tmp_pred, tmp_normed = AU.load_prediction_data(params, metric)
     prediction_distances.update(tmp_pred)
     normed_distances.update(tmp_normed)
 
@@ -87,8 +87,8 @@ plt.legend(loc=9, ncol=1,numpoints=1)
 plt.text(-0.06,0.95,'C', transform = plt.gca().transAxes, fontsize = 36)
 #save figure
 plt.tight_layout()
-plt.savefig(figure_folder+'Fig3C_'+flutype+'_pred_'+'-'.join(prediction_regions).replace(' ', '')
-            +'_comparison_ssize_'+str(sample_size)+'_d_'+str(dscale)+'_D_'+str(D)+'_'+metric+'_revised'+file_format)
+for ff in file_formats:
+    plt.savefig(figure_folder+'Fig4C_'+base_name+'_'+name_mod+'_internal_external_revised'+ff)
 
 
 ##################################################################################
@@ -99,6 +99,11 @@ plt.savefig(figure_folder+'Fig3C_'+flutype+'_pred_'+'-'.join(prediction_regions)
 
 #sorted_methods = [a for a in sorted(normed_distances.items(), key=lambda x:x[1]) if a[0][0] 
 #                  not in ['ladder rank', 'date', 'expansion, internal nodes', 'L&L'] or a[0][1]==0.0]
+tick_labels = {    ('fitness,internal nodes', 0.0, 'pred(I)'):'internal',
+                   ('fitness,terminal nodes', 0.0, 'pred(T)'):'terminal',
+                   ('expansion, internal nodes', 0.0, 'growth'):'growth',
+                   ('L&L', 0.0, r'L\&L'):r'L\&L',
+                   ('ladder rank',0.0, 'ladder rank'):'ladder rank'}
 sorted_methods = [a for a in sorted(normed_distances.items(), key=lambda x:x[1][0]) if a[0][:2] in 
                   [#('internal and expansion', 0.5),
                    #('internal and expansion', 0.0),
@@ -111,12 +116,13 @@ sorted_methods = [a for a in sorted(normed_distances.items(), key=lambda x:x[1][
 plt.figure(figsize = (8,5))
 plt.boxplot([a[1][1][-1] for a in sorted_methods],positions = range(len(sorted_methods)))
 #plt.xticks(range(len(sorted_methods)), [a[0][-1] for a in sorted_methods], rotation=30, horizontalalignment='right')
-plt.xticks(range(len(sorted_methods)), ['internal', 'terminal', 'L\&L', 'clade growth', 'ladder rank'], rotation=30, horizontalalignment='right')
+plt.xticks(range(len(sorted_methods)), [tick_labels[a[0]] for a in sorted_methods], rotation=30, horizontalalignment='right')
 plt.ylabel(r'distance $\bar{d}$ to next season')
 plt.xlim([-0.5, len(sorted_methods)-0.5])
 plt.grid()
 plt.tight_layout()
-plt.savefig(figure_folder+'Fig4_method_comparison'+file_format)
+for ff in file_formats:
+    plt.savefig(figure_folder+'Fig5_'+base_name+'_'+name_mod+'_method_comparison'+ff)
 
 ##################################################################################
 ## Fig 3c-1 Comparison to L&L
@@ -151,8 +157,8 @@ plt.legend(loc=9, ncol=1,numpoints=1)
 plt.text(0.02,0.9,'Fig.~3-S1', transform = plt.gca().transAxes, fontsize = 20)
 #save figure
 plt.tight_layout()
-plt.savefig(figure_folder+'Fig3C_s1_'+flutype+'_pred_'+'-'.join(prediction_regions).replace(' ', '')
-            +'_comparison_ssize_'+str(sample_size)+'_d_'+str(dscale)+'_D_'+str(D)+'_'+metric+'_revised'+file_format)
+for ff in file_formats:
+    plt.savefig(figure_folder+'Fig4C_s1_'+base_name+'_'+name_mod+'_LL_external_revised'+ff)
 
 
 ##################################################################################
@@ -188,9 +194,8 @@ plt.xlabel('year')
 plt.text(0.02,0.93,'Fig.~3-S2', transform = plt.gca().transAxes, fontsize = 20)
 #save figure
 plt.tight_layout()
-plt.savefig(figure_folder+'Fig3C_s2_'+flutype+'_pred_'+'-'.join(prediction_regions).replace(' ', '')
-            +'_comparison_ssize_'+str(sample_size)+'_d_'+str(dscale)+'_D_'+str(D)+'_'+metric+'_revised'+file_format)
-
+for ff in file_formats:
+    plt.savefig(figure_folder+'Fig4C_s2_'+base_name+'_'+name_mod+'_koel_boost_revised'+ff)
 
 ##################################################################################
 ## Fig 3c-3 inclusion of Koel boost -- with temporal compnent
@@ -226,8 +231,8 @@ plt.xlabel('year')
 plt.text(0.02,0.93,'Fig.~3-S3', transform = plt.gca().transAxes, fontsize = 20)
 #save figure
 plt.tight_layout()
-plt.savefig(figure_folder+'Fig3C_s3_'+flutype+'_pred_'+'-'.join(prediction_regions).replace(' ', '')
-            +'_comparison_ssize_'+str(sample_size)+'_d_'+str(dscale)+'_D_'+str(D)+'_'+metric+'_revised'+file_format)
+for ff in file_formats:
+    plt.savefig(figure_folder+'Fig4C_s3_'+base_name+'_'+name_mod+'_koel_boost_growth_revised'+ff)
 
 
 ##################################################################################
@@ -237,9 +242,9 @@ plt.savefig(figure_folder+'Fig3C_s3_'+flutype+'_pred_'+'-'.join(prediction_regio
 plt.figure(figsize = (10,6))
 bins=np.cumsum([0,31,28,31,30,31,30,31,31,30,31,30,31,31,28,31,30,31])
 bc = (bins[1:]+bins[:-1])*0.5
-bin_label = ['Jan', 'Feb', 'Mar', 'Apr', 'May','Jun','Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Apr', 'May']
-sampling_dates = AU.load_date_distribution(analysis_folder=analysis_folder, D=D,
-                                           dscale=dscale,boost=boost, sample_size=sample_size)
+bin_label = ['Jan', 'Feb', 'Mar', 'Apr', 'May','Jun','Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May']
+params.boost = 0.0
+sampling_dates = AU.load_date_distribution(params, 'mean_fitness')
 
 for year in sorted(sampling_dates.keys()):
     y,x = np.histogram(sampling_dates[year], bins=bins)
@@ -254,9 +259,8 @@ plt.legend(loc=1, ncol=2,numpoints=1)
 plt.text(0.02,0.9,'Fig.~3-S4', transform = plt.gca().transAxes, fontsize = 20)
 #save figure
 plt.tight_layout()
-plt.savefig(figure_folder+'Fig3C_s4_'+flutype+'_samplingdate_by_year_'+'-'.join(prediction_regions).replace(' ', '')
-            +'_comparison_ssize_'+str(sample_size)+'_d_'+str(dscale)+'_D_'+str(D)+'_'+metric+'_revised'+file_format)
-
+for ff in file_formats:
+    plt.savefig(figure_folder+'Fig3C_s4_'+base_name+'_'+name_mod+'_sampling_dates_by_year'+ff)
 
 plt.figure()
 all_dates = []
@@ -268,8 +272,8 @@ plt.ylabel('distribution of predicted strains')
 plt.xlabel('sampling date')
 plt.xticks(bc, bin_label)
 plt.tight_layout()
-plt.savefig(figure_folder+'Fig3C_s5_'+flutype+'_samplingdate_all_'+'-'.join(prediction_regions).replace(' ', '')
-            +'_comparison_ssize_'+str(sample_size)+'_d_'+str(dscale)+'_D_'+str(D)+'_'+metric+'_revised'+file_format)
+for ff in file_formats:
+    plt.savefig(figure_folder+'Fig4C_s5_'+base_name+'_'+name_mod+'_sampling_dates'+ff)
 
 
 

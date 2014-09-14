@@ -1,3 +1,4 @@
+
 #########################################################################################
 #
 # author: Richard Neher
@@ -27,7 +28,7 @@ class fitness_inference(survival_gen_func):
     class that generates a biopython tree dressed with ancestral fitness distributions
     '''
 
-    def __init__(self, eps_branch_length = 1e-7, D = 0.2, fit_grid = None):
+    def __init__(self, eps_branch_length = 1e-7, D = 0.2, fit_grid = None, samp_frac = 0.01, mem = 1.0):
         '''
         keyword arguments
         pseudo_branch_length -- small value to be added to each branch 
@@ -36,18 +37,19 @@ class fitness_inference(survival_gen_func):
         fit_grid             -- discrete fitness grid on which all fitness distribution are calculated
         '''
         if fit_grid is None:
-            self.nstates = 41        # length of the state vector (# of fitness bins) 
-            self.fitness_grid = np.linspace(-3,7,self.nstates) # fitness range in standard deviations
+            self.nstates = 49        # length of the state vector (# of fitness bins) 
+            self.fitness_grid = np.linspace(-4,8,self.nstates) # fitness range in standard deviations
         else:
             self.nstates = len(fit_grid)
             self.fitness_grid = np.array(fit_grid)
-
+        self.boundary_layer = 4
         self.dfit = self.fitness_grid[1] - self.fitness_grid[0]
 
         self.pseudo_branch_length = eps_branch_length
         self.D = D  # diffusion constant of individual lineages. 
         self.v = 1                # velocity = sigma^2 of the wave
-        self.sampling_fraction = 0.001 # sampling fraction
+        self.sampling_fraction = samp_frac # sampling fraction
+        self.memory = mem
         # make set-up propagator and integrate the generating function on t = [0,20]
         survival_gen_func.__init__(self,self.fitness_grid)
         self.integrate_phi(self.D, self.sampling_fraction, np.array(np.linspace(0,10, 201).tolist()
@@ -92,8 +94,8 @@ class fitness_inference(survival_gen_func):
 
         # there is no parental information to the root (the root node is artificial)
         # hence init the message with a gaussian
-        self.T.root.up_message = np.exp(-0.5*self.fitness_grid**2)
-
+        self.T.root.down_message = np.exp(-0.5*self.fitness_grid**2)
+        self.T.root.down_polarizer = 0
 
     def guess_time_scale(self):
         '''
@@ -133,10 +135,16 @@ class fitness_inference(survival_gen_func):
     def propagator(self, t1,t2):
         '''
         input: initial state, time interval
-        return the solution of the fitness evolution
+        returns the solution of the fitness evolution
+           - note that the offspring fitness is in dimension 0
+           - the ancestor fitness coordinate is in dimension 1
+           - the first self.boundary_layer and last self.boundary_layer 
+             values for the offspring fitness are 0
         '''
+        b = self.boundary_layer
+        sol = np.zeros((self.nstates-2*b, self.nstates))
         sol = self.integrate_prop(self.D, self.sampling_fraction, 
-                                  self.fitness_grid, t1,t2)
+                                  self.fitness_grid[b:-b], t1,t2)[-1]
 
         return sol
     
@@ -163,54 +171,97 @@ class fitness_inference(survival_gen_func):
         # normalize
         self.normalize(clade)
 
-
-    def calc_up_messages(self,clade):
+    def calc_down_polarizers(self,clade):
         '''
-        calculate the messages that are passed on to the children
-        input: calde for which these are to calculated
-        NOTE: my trees have their root at the bottom!!
+        calculate the polarizers that are passed on to the children
+        input: clade for which these are to calculated
         '''
-        #print "calc_up_msg", clade
+        #print "calc_down_msg", clade
         if clade.is_terminal():
             #nothing to be done for terminal nodes
             return
         else:
             #else, loop over children and calculate the message for each of the children
             for child in clade.clades:
-                # initialize with the message comming from the parent
-                clade.prob[:]=np.log(clade.up_message)
+                child.down_polarizer = clade.down_polarizer
                 for child2  in clade.clades:
                     if child2 != child:
-                        #multiply with the down message from each of the children, but skip child 1
-                        clade.prob+=np.log(child2.down_message)
+                        child.down_polarizer += child2.up_polarizer
 
-                # normalize, adjust for modifications along the branch, and save.
-                self.log_normalize(clade)
-                PY = np.repeat(clade.prob,self.nstates).reshape((self.nstates,-1))
-                child.up_message  = (child.propagator.T*PY).sum(axis=0)
-                child.up_message[child.up_message<non_negativity_cutoff] = non_negativity_cutoff
-            # do recursively for all children
+                bl = (child.branch_length+self.pseudo_branch_length)/self.time_scale
+                child.down_polarizer *= np.exp(-bl/self.memory)           
+                child.down_polarizer += self.memory*(1-np.exp(-bl/self.memory))
+                # do recursively for all children
             for child in clade.clades:
-                self.calc_up_messages(child)
+                self.calc_down_polarizers(child)
 
     def calc_down_messages(self,clade):
         '''
-        input: clade whose down_messsage is to be calculated
-        NOTE: my trees have their root at the bottom!!
+        calculate the messages that are passed on to the children
+        input: clade for which these are to calculated
         '''
         #print "calc_down_msg", clade
-        clade.down_message=np.zeros(self.nstates)
+        if clade.is_terminal():
+            #nothing to be done for terminal nodes
+            return
+        else:
+            b=self.boundary_layer
+            #else, loop over children and calculate the message for each of the children
+            for child in clade.clades:
+                child.down_message = np.zeros_like(self.fitness_grid)
+                # initialize with the message coming from the parent
+                clade.prob[:]=np.log(clade.down_message)
+                for child2  in clade.clades:
+                    if child2 != child:
+                        #multiply with the down message from each of the children, but skip child 1                        
+                        clade.prob+=np.log(child2.up_message)
+
+                # normalize, adjust for modifications along the branch, and save.
+                self.log_normalize(clade)
+                # node that the propagator is only calculated for offpring fitness self.boundary
+                # away from the fitness grid. the ancestor fitness (y) is repeated hence 
+                # self.nstates-2*b times
+                PY = np.repeat([clade.prob],self.nstates-2*self.boundary_layer, axis=0)
+                child.down_message[b:-b]  = (child.propagator*PY).sum(axis=1)
+                child.down_message[child.down_message<non_negativity_cutoff] = non_negativity_cutoff
+            # do recursively for all children
+            for child in clade.clades:
+                self.calc_down_messages(child)
+
+
+    def calc_up_polarizers(self,clade):
+        '''
+        input: clade whose up_polarizer (to parents) is to be calculated
+        '''
+        clade.up_polarizer=0
+        # add the trees of the children shifted by shift bins
+        for child in clade.clades:
+            self.calc_up_polarizers(child)
+            clade.up_polarizer += child.up_polarizer
+        bl = (clade.branch_length+self.pseudo_branch_length)/self.time_scale
+        clade.up_polarizer*=np.exp(-bl/self.memory)
+        clade.up_polarizer += self.memory*(1-np.exp(-bl/self.memory))
+        
+
+
+    def calc_up_messages(self,clade):
+        '''
+        input: clade whose up_message (to parents is to be calculated
+        '''
+        #print "calc_up_msg", clade
+        b=self.boundary_layer
+        clade.up_message=np.zeros(self.nstates)
         clade.prob[:] = 0
         # add the trees of the children shifted by shift bins
         for child in clade.clades:
-            self.calc_down_messages(child)
-            clade.prob+=np.log(child.down_message)
+            self.calc_up_messages(child)
+            clade.prob+=np.log(child.up_message)
         self.log_normalize(clade)
         if clade.is_terminal: eps_branch = self.pseudo_branch_length/self.time_scale
         else: eps_branch = self.pseudo_branch_length/self.time_scale
         clade.propagator = self.propagator(self.time_to_present[clade]/self.time_scale, 
                                        (self.time_to_present[clade]+clade.branch_length)/self.time_scale
-                                           +eps_branch)[-1]
+                                           +eps_branch)
         try:
             shift = int(np.floor(clade.fitness_shift/self.dfit))
             if shift>0:
@@ -221,24 +272,37 @@ class fitness_inference(survival_gen_func):
             if verbose:
                 print "fitness shift not found!"
 
-        PX =  np.repeat(clade.prob,self.nstates).reshape((self.nstates,-1))
-        clade.down_message = (clade.propagator*PX).sum(axis=0)
-        clade.down_message[clade.down_message<non_negativity_cutoff] = non_negativity_cutoff
+        PX =  np.repeat([clade.prob[b:-b]],self.nstates, axis=0).T
+        clade.up_message = (clade.propagator*PX).sum(axis=0)
+        clade.up_message[clade.up_message<non_negativity_cutoff] = non_negativity_cutoff
 
 
     def calc_marginal_probabilities(self,clade):
         '''
         calculate the marginal probabilities by multiplying all incoming messages
         '''
-        clade.prob[:]=np.log(clade.up_message)
+        clade.prob[:]=np.log(clade.down_message)
         for child in clade.clades:
-            clade.prob[:]+=np.log(child.down_message)
+            clade.prob[:]+=np.log(child.up_message)
         
         # normalize and continue for all children
         self.log_normalize(clade)
         #print clade.name, np.max(1.0-np.max(clade.prob, axis=1))
         for child in clade.clades:
             self.calc_marginal_probabilities(child)
+
+
+    def calc_marginal_polarizers(self,clade):
+        '''
+        calculate the marginal probabilities by multiplying all incoming messages
+        '''
+        clade.polarizer = clade.down_polarizer
+        for child in clade.clades:
+            clade.polarizer += child.up_polarizer
+        
+        # repeat for all children
+        for child in clade.clades:
+            self.calc_marginal_polarizers(child)
 
             
     def calc_mean_and_variance(self,clade):
@@ -259,9 +323,20 @@ class fitness_inference(survival_gen_func):
         given the initialized instance, calculates the ancestral fitness distribution
         and the marginal probabilities for each position at each internal node.
         '''
-        self.calc_down_messages(self.T.root)
         self.calc_up_messages(self.T.root)
+        self.calc_down_messages(self.T.root)
         self.calc_marginal_probabilities(self.T.root)
         self.calc_mean_and_variance(self.T.root)
+
+    def calculate_polarizers(self, mem=None):
+        '''
+        given the initialized instance, calculates the ancestral fitness distribution
+        and the marginal probabilities for each position at each internal node.
+        '''
+        if mem is not None:
+            self.memory=mem
+        self.calc_up_polarizers(self.T.root)
+        self.calc_down_polarizers(self.T.root)
+        self.calc_marginal_polarizers(self.T.root)
 
 

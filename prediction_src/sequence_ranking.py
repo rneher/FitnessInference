@@ -66,7 +66,7 @@ class alignment(object):
     class holding an aligment, an outgroup, allele frequencies and utility functions
     '''
     
-    def __init__(self, aln, outgroup, cds=None, collapse = False):
+    def __init__(self, aln, outgroup, cds=None, collapse = False, build_tree=True):
         '''
         parameters:
         aln         --  biopython alignment
@@ -79,6 +79,7 @@ class alignment(object):
         self.collapse=collapse
         self.alphabet = 'ACTG-'
         self.aa_alphabet = ''.join(aa_codes.keys())
+        self.make_tree=build_tree
         if cds is not None:
             self.cds = cds
             self.protein = True
@@ -110,9 +111,10 @@ class alignment(object):
             print "done in ", np.round(time.time()-t1,2),'seconds'
             t1= time.time()
             print "calculating tree..."
-        self.build_tree(collapse_nodes = self.collapse)
-        if verbose:
-            print "done in ", np.round(time.time()-t1,2),'seconds'
+        if self.make_tree:
+            self.build_tree(collapse_nodes = self.collapse)
+            if verbose:
+                print "done in ", np.round(time.time()-t1,2),'seconds'
 
 
     def calculate_allele_frequencies(self):
@@ -262,20 +264,15 @@ class sequence_ranking(node_ranking):
     and uses the prediction and ranking function of the base
     '''
 
-    def __init__(self, sequence_data,
-                 eps_branch_length=1e-5, time_bins=None,
-                 pseudo_count = 5, methods = ['mean_fitness', 'branch_length', 
-                                              'depth', 'expansion_score'], D=0.5,distance_scale = 1.0):
-        node_ranking.__init__(self, eps_branch_length = eps_branch_length, 
-                              time_bins=time_bins, pseudo_count = pseudo_count,
-                              methods= methods, D=D)
+    def __init__(self, sequence_data, distance_scale = 1.0, *args, **kwargs):
+        node_ranking.__init__(self, *args, **kwargs)
         self.distance_scale = distance_scale
         self.data = sequence_data
 
         # calcute the coalescence time scale associated with tree        
         pairwise_distance = np.sum((self.data.allele_frequencies
                                     *(1-self.data.allele_frequencies)), axis=0).mean()
-        # distance_scale * D * T_2 = 1
+        # distance_scale * D * T_2 = 1, T2 = pi/2
         self.time_scale = distance_scale*self.D*pairwise_distance*0.5
         self.set_tree(tree = self.data.T, time_scale = self.time_scale)
 
@@ -287,6 +284,6 @@ class sequence_ranking(node_ranking):
             the highest ranked external node
         '''
         self.compute_rankings()
-        return self.best_node()
+        return self.best_node(self.methods[0])
 
     
