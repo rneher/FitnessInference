@@ -29,17 +29,21 @@ parser = argparse.ArgumentParser(description="rank sequences in a multiple seque
 parser.add_argument('--aln', type=str, required= True, help = 'alignment of sequences to by ranked')
 parser.add_argument('--outgroup', type=str,required= True, help = 'name of outgroup sequence')
 parser.add_argument('--eps_branch', default=1e-5, type=float, help='minimal branch length for inference')
-parser.add_argument('--tau', default=0.125, type=float, help='time scale for local tree length estimation (relative to average pairwise distance)')
+parser.add_argument('--tau', default=0.0625, type=float, help='time scale for local tree length estimation (relative to average pairwise distance)')
 parser.add_argument('--collapse', const = True, default=True, nargs='?', help='collapse internal branches with identical sequences')
 parser.add_argument('--plot', const = True, default=False, nargs='?', help='plot trees')
 params=parser.parse_args()
 #########################################################################################
 
+# irrelevant parameters not needed for the LBI
 params.diffusion=1.0
 params.gamma=1.0
 params.omega = 1.0
+print "Using time scale tau =",params.tau,"in units of the average pairwise distance between sequences"
+
 # change time units from pairwise distance to pair coalescent time.
 params.tau = params.tau*2
+
 
 import matplotlib
 matplotlib.use('pdf')
@@ -94,7 +98,7 @@ if outgroup is None:
 #######################################################################################
 ## set up the sequence data set and run the prediction algorithm
 #######################################################################################
-seq_data = alignment(aln, outgroup)
+seq_data = alignment(aln, outgroup, collapse=True)
 
 prediction = sequence_ranking(seq_data, eps_branch_length=params.eps_branch, pseudo_count = 5,
                             methods = ['polarizer'], D=params.diffusion,
@@ -128,18 +132,19 @@ with open(dirname+'/ancestral_sequences.fasta', 'w') as outfile:
 # terminal nodes
 prediction.rank_by_method(nodes = prediction.terminals, method = 'polarizer');
 with open(dirname+'/sequence_ranking_terminals.txt', 'w') as outfile:
-    outfile.write('#'+'\t'.join(['name','rank', 'polarizer'])+'\n')
+    outfile.write('#'+'\t'.join(['name','rank', 'LBI'])+'\n')
     for node in prediction.terminals:
         outfile.write('\t'.join(map(str,[node.name, node.rank, node.polarizer]))+'\n')
 
 # terminal nodes
 prediction.rank_by_method(nodes = prediction.non_terminals, method = 'polarizer');
 with open(dirname+'/sequence_ranking_nonterminals.txt', 'w') as outfile:
-    outfile.write('#'+'\t'.join(['name','rank', 'polarizer'])+'\n')
+    outfile.write('#'+'\t'.join(['name','rank', 'LBI'])+'\n')
     for node in prediction.non_terminals:
         outfile.write('\t'.join(map(str,[node.name, node.rank, node.polarizer]))+'\n')
 
-
+# plot the tree if desired
 if params.plot:
-    tree_utils.plot_prediction_tree(prediction, method='polarizer')
+    tree_utils.plot_prediction_tree(prediction, method='polarizer', internal=True)
     plt.savefig(dirname+'/marked_up_tree.pdf')
+
