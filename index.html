@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="description" content="Fitnessinference : Prediction fitness of leaves on a genealogical tree">
+
+    <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
+
+    <title>Fitnessinference</title>
+  </head>
+
+  <body>
+
+    <!-- HEADER -->
+    <div id="header_wrap" class="outer">
+        <header class="inner">
+          <a id="forkme_banner" href="https://github.com/rneher/FitnessInference">View on GitHub</a>
+
+          <h1 id="project_title">Fitnessinference</h1>
+          <h2 id="project_tagline">Prediction fitness of leaves on a genealogical tree</h2>
+
+            <section id="downloads">
+              <a class="zip_download_link" href="https://github.com/rneher/FitnessInference/zipball/master">Download this project as a .zip file</a>
+              <a class="tar_download_link" href="https://github.com/rneher/FitnessInference/tarball/master">Download this project as a tar.gz file</a>
+            </section>
+        </header>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="main_content_wrap" class="outer">
+      <section id="main_content" class="inner">
+        <p><img src="http://neherlab.files.wordpress.com/2014/06/propagator.png" alt="Propagator illustration"><img src="http://neherlab.files.wordpress.com/2014/06/flu_tree.png" alt="Influenza tree"></p>
+
+<h3>
+<a name="inferring-fitness-from-the-shape-of-trees" class="anchor" href="#inferring-fitness-from-the-shape-of-trees"><span class="octicon octicon-link"></span></a>Inferring fitness from the shape of trees</h3>
+
+<p>Neher, Russell, Shraiman: "Predicting evolution from the shape of genealogical trees".
+accepted for publication in eLife</p>
+
+<hr><p>The directory <em>prediction_src</em> contains the code base used for the fitness inference and prediction algorithms as well as classes to hold sequence data and trees adapted.</p>
+
+<hr><p>The directory <em>flu</em> contains the code specific to our analysis of historical influenza data, scripts that generate the figures, the influenza sequences and annotation, analysis results and figure files.</p>
+
+<hr><p>The directory <em>toy_data</em> contains the code to simulate adapting populations building on the FFPopSim library. In addition, it contains scripts to analyze this simulated data, the data itself and the resulting figures.</p>
+
+<hr><h4>
+<a name="ranking-sequences-by-the-local-branching-index-lbi" class="anchor" href="#ranking-sequences-by-the-local-branching-index-lbi"><span class="octicon octicon-link"></span></a>Ranking sequences by the local branching index (LBI)</h4>
+
+<p>The script <em>rank_sequences.py</em> is a simple wrapper for the prediction tool that takes a multiple sequence alignment and the name of the outgroup as input (this outgroup needs to be in the MSA). It produces a folder containing a ranking of sequences, the inferred ancestral sequences, the reconstructed tree, and optionally a pdf of the marked up tree. This script uses the local branching index (LBI), rather than the full fitness inference to rank sequences.  </p>
+
+<p>build-in help and optional arguments:</p>
+
+<pre><code>./rank_sequences.py --help
+usage: rank_sequences.py [-h] --aln ALN --outgroup OUTGROUP
+                         [--eps_branch EPS_BRANCH] [--tau TAU]
+                         [--collapse [COLLAPSE]] [--plot [PLOT]]
+
+rank sequences in a multiple sequence aligment
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --aln ALN             alignment of sequences to by ranked
+  --outgroup OUTGROUP   name of outgroup sequence
+  --eps_branch EPS_BRANCH
+                        minimal branch length for inference
+  --tau TAU             time scale for local tree length estimation (relative
+                        to average pairwise distance)
+  --collapse [COLLAPSE]
+                        collapse internal branches with identical sequences
+  --plot [PLOT]         plot trees
+</code></pre>
+
+<h4>
+<a name="inferring-fitness-distribution-of-nodes-in-the-tree" class="anchor" href="#inferring-fitness-distribution-of-nodes-in-the-tree"><span class="octicon octicon-link"></span></a>Inferring fitness distribution of nodes in the tree</h4>
+
+<p>The script <em>infer_fitness.py</em> also takes an alignment and outgroup as argument, but uses the full fitness inference to rank sequences and calculate the mean posterior and the variance of the posterior. Note that plausible posterior distributions require a that the parameter omega is well chosen. Also, the time conversion factor might need to be different from gamma=1 for optimal results.</p>
+
+<pre><code>./infer_fitness.py --help
+usage: infer_fitness.py [-h] --aln ALN --outgroup OUTGROUP
+                        [--eps_branch EPS_BRANCH] [--diffusion DIFFUSION]
+                        [--gamma GAMMA] [--omega OMEGA]
+                        [--collapse [COLLAPSE]] [--plot [PLOT]]
+
+rank sequences in a multiple sequence aligment
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --aln ALN             alignment of sequences to by ranked
+  --outgroup OUTGROUP   name of outgroup sequence
+  --eps_branch EPS_BRANCH
+                        minimal branch length for inference
+  --diffusion DIFFUSION
+                        fitness diffusion coefficient
+  --gamma GAMMA         scale factor for time scale, choose high (&gt;2) for
+                        prediction, 1 for fitness inference
+  --omega OMEGA         approximate sampling fraction diveded by the fitness
+                        standard deviation
+  --collapse [COLLAPSE]
+                        collapse internal branches with identical sequences
+  --plot [PLOT]         plot trees
+</code></pre>
+      </section>
+    </div>
+
+    <!-- FOOTER  -->
+    <div id="footer_wrap" class="outer">
+      <footer class="inner">
+        <p class="copyright">Fitnessinference maintained by <a href="https://github.com/rneher">rneher</a></p>
+        <p>Published with <a href="http://pages.github.com">GitHub Pages</a></p>
+      </footer>
+    </div>
+
+    
+
+  </body>
+</html>
