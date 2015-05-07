@@ -70,6 +70,7 @@ def calculate_tree(aln, outgroup, ancestral=True):
 
     #all fasttree output is returned as byte string, parse and write tree to file
     biopython_tree = Phylo.read(StringIO(fasttree_output), 'newick')
+    biopython_tree.root.branch_length = 0.000001
     with gzip.open(tmp_file_name, 'r') as infile:
         tmp_aln = AlignIO.read(infile, 'fasta')
     # determine the root clade, root, and ladderize
